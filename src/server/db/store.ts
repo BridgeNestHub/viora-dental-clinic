@@ -1,0 +1,801 @@
+import fs from 'fs';
+import path from 'path';
+import bcrypt from 'bcryptjs';
+
+export interface User {
+  id: string;
+  username: string;
+  fullName: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  passwordHash: string;
+  role: 'super_admin' | 'doctor_manager' | 'receptionist' | 'doctor';
+  doctorId?: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Dentist {
+  id: string;
+  name: string;
+  firstName?: string;
+  lastName?: string;
+  titlePrefix?: string;
+  title: string;
+  specialization: string;
+  bio: string;
+  email: string;
+  phone: string;
+  qualifications: string;
+  experienceYears: number;
+  photoUrl: string;
+  workingDays: string[]; // e.g. ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+  workingHours: { start: string; end: string };
+  daysOff: string[]; // YYYY-MM-DD
+  isActive: boolean;
+}
+
+export interface Service {
+  id: string;
+  name: string;
+  category: 'general' | 'cosmetic' | 'orthodontics' | 'implants' | 'pediatric' | 'whitening' | 'root_canal' | 'emergency';
+  description: string;
+  startingPrice: number; // in ETB
+  durationMinutes: number;
+  iconName: string;
+  isPopular: boolean;
+}
+
+export type PaymentMethod = 'cash' | 'telebirr' | 'cbe_birr' | 'bank_transfer';
+
+export interface Appointment {
+  id: string;
+  appointmentNumber: string;
+  patientName: string;
+  patientFirstName?: string;
+  patientLastName?: string;
+  patientPhone: string;
+  patientEmail?: string;
+  dentistId: string;
+  dentistName: string;
+  serviceId: string;
+  serviceName: string;
+  date: string; // YYYY-MM-DD
+  startTime: string; // HH:mm
+  endTime: string; // HH:mm
+  status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
+  paymentMethod?: PaymentMethod;
+  notes?: string;
+  isWalkIn: boolean;
+  createdBy?: string;
+  reminderSent: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BlogPost {
+  id: string;
+  slug: string;
+  title: string;
+  category: string;
+  readTimeMinutes: number;
+  excerpt: string;
+  content: string;
+  coverImageUrl: string;
+  authorName: string;
+  authorRole: string;
+  authorId?: string; // user id of the staff account that created the post
+  publishedAt: string;
+  isPublished: boolean;
+}
+
+export interface GalleryItem {
+  id: string;
+  title: string;
+  category: string;
+  description: string;
+  beforeImageUrl?: string;
+  afterImageUrl?: string;
+  singleImageUrl?: string;
+  isBeforeAfter: boolean;
+  sortOrder: number;
+  doctorName?: string;
+}
+
+export interface Testimonial {
+  id: string;
+  patientName: string;
+  treatment: string;
+  rating: number;
+  comment: string;
+  date: string;
+  isApproved: boolean;
+  avatarUrl?: string;
+}
+
+export interface ContactMessage {
+  id: string;
+  name: string;
+  firstName?: string;
+  lastName?: string;
+  phone: string;
+  email?: string;
+  subject: string;
+  message: string;
+  status: 'unread' | 'read' | 'replied';
+  createdAt: string;
+}
+
+export interface AuditLog {
+  id: string;
+  timestamp: string;
+  userId: string;
+  username: string;
+  userRole: string;
+  action: string;
+  details: string;
+}
+
+export interface PageSeo {
+  page: string;
+  title: string;
+  metaDescription: string;
+  ogTitle: string;
+  ogDescription: string;
+  keywords: string;
+}
+
+export interface DatabaseSchema {
+  users: User[];
+  dentists: Dentist[];
+  services: Service[];
+  appointments: Appointment[];
+  blogPosts: BlogPost[];
+  galleryItems: GalleryItem[];
+  testimonials: Testimonial[];
+  contactMessages: ContactMessage[];
+  auditLogs: AuditLog[];
+  seoSettings: Record<string, PageSeo>;
+}
+
+const DATA_DIR = path.resolve(process.cwd(), 'data');
+const DB_FILE = path.join(DATA_DIR, 'viora_store.json');
+
+// Ensure data directory exists
+if (!fs.existsSync(DATA_DIR)) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+
+// In-memory working cache
+let db: DatabaseSchema;
+
+export function getInitialSeedData(): DatabaseSchema {
+  const salt = bcrypt.genSaltSync(10);
+  const defaultAdminPass = bcrypt.hashSync('Admin@123', salt);
+  const defaultStaffPass = bcrypt.hashSync('Staff@123', salt);
+
+  return {
+    users: [
+      {
+        id: 'u-1',
+        username: 'superadmin',
+        fullName: 'Dr. Selamawit Bekele (Lead Director)',
+        email: 'admin@vioradental.com',
+        passwordHash: defaultAdminPass,
+        role: 'super_admin',
+        isActive: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      {
+        id: 'u-2',
+        username: 'doc_manager',
+        fullName: 'Dawit Yohannes',
+        email: 'manager@vioradental.com',
+        passwordHash: defaultStaffPass,
+        role: 'doctor_manager',
+        isActive: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      {
+        id: 'u-3',
+        username: 'reception',
+        fullName: 'Hanan Mohammed',
+        email: 'frontdesk@vioradental.com',
+        passwordHash: defaultStaffPass,
+        role: 'receptionist',
+        isActive: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      {
+        id: 'u-4',
+        username: 'dr_selamawit',
+        fullName: 'Dr. Selamawit Bekele',
+        email: 'selamawit@vioradental.com',
+        passwordHash: defaultStaffPass,
+        role: 'doctor',
+        doctorId: 'd-1',
+        isActive: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      {
+        id: 'u-5',
+        username: 'dr_amanuel',
+        fullName: 'Dr. Amanuel Tadesse',
+        email: 'amanuel@vioradental.com',
+        passwordHash: defaultStaffPass,
+        role: 'doctor',
+        doctorId: 'd-2',
+        isActive: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    ],
+    dentists: [
+      {
+        id: 'd-1',
+        name: 'Dr. Selamawit Bekele',
+        title: 'Lead Aesthetic & Implant Dentist',
+        specialization: 'Cosmetic Dentistry & Implantology',
+        bio: 'Dr. Selamawit has over 14 years of clinical experience specializing in advanced porcelain veneers, digital smile design, and guided dental implant surgery. She completed postdoctoral aesthetic fellowship training in Germany and has transformed over 3,000 smiles.',
+        email: 'selamawit@vioradental.com',
+        phone: '+251 911 234 567',
+        qualifications: 'DDS, MSc Aesthetic Dentistry (Frankfurt), Fellow ICOI',
+        experienceYears: 14,
+        photoUrl: '/src/assets/images/viora_dentist_doctor_1791308053834.jpg',
+        workingDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'],
+        workingHours: { start: '08:30', end: '17:30' },
+        daysOff: [],
+        isActive: true,
+      },
+      {
+        id: 'd-2',
+        name: 'Dr. Amanuel Tadesse',
+        title: 'Senior Specialist Orthodontist',
+        specialization: 'Orthodontics & Clear Aligners',
+        bio: 'Certified Invisalign Diamond provider and expert in interceptive pediatric orthodontics, ceramic brackets, and complex adult bite corrections. Dr. Amanuel utilizes 3D iTero intraoral scanning for precise non-invasive alignment plans.',
+        email: 'amanuel@vioradental.com',
+        phone: '+251 911 345 678',
+        qualifications: 'BDS, MOrth RCSEd (UK), Certified Clear Aligner Specialist',
+        experienceYears: 11,
+        photoUrl: '/src/assets/images/viora_smile_consultation_1791308064299.jpg',
+        workingDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
+        workingHours: { start: '09:00', end: '18:00' },
+        daysOff: [],
+        isActive: true,
+      },
+      {
+        id: 'd-3',
+        name: 'Dr. Helen Mengistu',
+        title: 'Endodontist & Restorative Specialist',
+        specialization: 'Microscopic Root Canal & Restorations',
+        bio: 'Specializing in pain-free microscopic endodontics and single-visit tooth preservation. Dr. Helen utilizes surgical operating microscopes and rotary nickel-titanium instrumentation for 98% root canal success rates.',
+        email: 'helen@vioradental.com',
+        phone: '+251 911 456 789',
+        qualifications: 'DDS, Post-Grad Diploma Endodontology',
+        experienceYears: 9,
+        photoUrl: '/src/assets/images/viora_dentist_doctor_1791308053834.jpg',
+        workingDays: ['tuesday', 'wednesday', 'thursday', 'friday', 'saturday'],
+        workingHours: { start: '08:30', end: '16:30' },
+        daysOff: [],
+        isActive: true,
+      },
+      {
+        id: 'd-4',
+        name: 'Dr. Yonas Kebede',
+        title: 'Pediatric & Family Dental Care',
+        specialization: 'Pediatric Dentistry & Preventive Care',
+        bio: 'Passionate about gentle, anxiety-free dentistry for infants, children, and teens. Creates an ultra-calm, playful clinical atmosphere that turns dental visits into enjoyable lifelong oral hygiene habits.',
+        email: 'yonas@vioradental.com',
+        phone: '+251 911 567 890',
+        qualifications: 'DDS, Certificate in Pediatric Dentistry',
+        experienceYears: 8,
+        photoUrl: '/src/assets/images/viora_dentist_doctor_1791308053834.jpg',
+        workingDays: ['monday', 'wednesday', 'thursday', 'friday', 'saturday'],
+        workingHours: { start: '09:00', end: '17:00' },
+        daysOff: [],
+        isActive: true,
+      },
+    ],
+    services: [
+      {
+        id: 's-1',
+        name: 'Comprehensive Oral Exam & Digital X-Ray',
+        category: 'general',
+        description: 'Complete digital panoramic and bitewing 3D imaging, periodontal gum health staging, oral cancer screening, and custom treatment plan roadmap.',
+        startingPrice: 1200,
+        durationMinutes: 30,
+        iconName: 'Stethoscope',
+        isPopular: true,
+      },
+      {
+        id: 's-2',
+        name: 'Ultrasonic Scaling & Air Polish',
+        category: 'general',
+        description: 'Deep hygienic plaque and tartar debridement using gentle ultrasonic vibrations, followed by gentle stain-removing bicarbonate air-polishing.',
+        startingPrice: 2200,
+        durationMinutes: 45,
+        iconName: 'Sparkles',
+        isPopular: true,
+      },
+      {
+        id: 's-3',
+        name: 'Porcelain Veneers & Smile Makeover',
+        category: 'cosmetic',
+        description: 'Ultra-thin, custom-fabricated E.max porcelain laminates crafted to correct tooth discoloration, chips, gaps, and symmetry for a red-carpet smile.',
+        startingPrice: 16000,
+        durationMinutes: 60,
+        iconName: 'Smile',
+        isPopular: true,
+      },
+      {
+        id: 's-4',
+        name: 'In-Office Laser Teeth Whitening',
+        category: 'whitening',
+        description: 'Medical-grade cold blue light activation with dental peroxide gel. Brightens teeth up to 8 shades in a single 45-minute comfortable session.',
+        startingPrice: 7500,
+        durationMinutes: 45,
+        iconName: 'Sun',
+        isPopular: true,
+      },
+      {
+        id: 's-5',
+        name: 'Precision Dental Implants',
+        category: 'implants',
+        description: 'Permanent titanium root replacement with 3D guided computer placement, integrated with high-strength zirconia crown for lifelike bite function.',
+        startingPrice: 32000,
+        durationMinutes: 60,
+        iconName: 'Anchor',
+        isPopular: true,
+      },
+      {
+        id: 's-6',
+        name: 'Clear Aligners & Orthodontic Therapy',
+        category: 'orthodontics',
+        description: 'Virtually invisible removable orthodontic trays customized with 3D digital simulation for discreet, comfortable tooth straightening.',
+        startingPrice: 45000,
+        durationMinutes: 45,
+        iconName: 'Compass',
+        isPopular: true,
+      },
+      {
+        id: 's-7',
+        name: 'Microscopic Root Canal Therapy',
+        category: 'root_canal',
+        description: 'Painless endodontic cleaning and 3D warm vertical condensation sealing under Zeiss dental magnification to save infected teeth from extraction.',
+        startingPrice: 6500,
+        durationMinutes: 60,
+        iconName: 'ShieldCheck',
+        isPopular: false,
+      },
+      {
+        id: 's-8',
+        name: 'Pediatric Dental Care & Fluoride Sealants',
+        category: 'pediatric',
+        description: 'Child-friendly gentle exams, remineralizing fluoride varnish, cavity-preventing fissure sealants, and enjoyable oral health coaching.',
+        startingPrice: 1800,
+        durationMinutes: 30,
+        iconName: 'HeartHandshake',
+        isPopular: false,
+      },
+      {
+        id: 's-9',
+        name: 'Emergency Dental Relief & Tooth Trauma',
+        category: 'emergency',
+        description: 'Same-day urgent appointment for severe toothache, broken crowns, dental abscess drainage, and sudden tooth fractures.',
+        startingPrice: 3000,
+        durationMinutes: 30,
+        iconName: 'AlertCircle',
+        isPopular: false,
+      },
+    ],
+    appointments: [
+      {
+        id: 'apt-1',
+        appointmentNumber: 'VIO-8401',
+        patientName: 'Abebe Tilahun',
+        patientPhone: '+251 922 112 233',
+        patientEmail: 'abebe.t@gmail.com',
+        dentistId: 'd-1',
+        dentistName: 'Dr. Selamawit Bekele',
+        serviceId: 's-3',
+        serviceName: 'Porcelain Veneers & Smile Makeover',
+        date: new Date().toISOString().split('T')[0],
+        startTime: '10:00',
+        endTime: '11:00',
+        status: 'confirmed',
+        notes: 'Final cosmetic shade consultation and mock-up fitting.',
+        isWalkIn: false,
+        reminderSent: true,
+        createdAt: new Date(Date.now() - 86400000).toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      {
+        id: 'apt-2',
+        appointmentNumber: 'VIO-8402',
+        patientName: 'Lidya Girma',
+        patientPhone: '+251 933 445 566',
+        patientEmail: '',
+        dentistId: 'd-2',
+        dentistName: 'Dr. Amanuel Tadesse',
+        serviceId: 's-6',
+        serviceName: 'Clear Aligners & Orthodontic Therapy',
+        date: new Date().toISOString().split('T')[0],
+        startTime: '11:30',
+        endTime: '12:15',
+        status: 'confirmed',
+        notes: 'Walk-in booking registered by reception desk.',
+        isWalkIn: true,
+        createdBy: 'Hanan Mohammed',
+        reminderSent: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      {
+        id: 'apt-3',
+        appointmentNumber: 'VIO-8403',
+        patientName: 'Yared Mulugeta',
+        patientPhone: '+251 944 778 899',
+        patientEmail: 'yared.mulu@yahoo.com',
+        dentistId: 'd-1',
+        dentistName: 'Dr. Selamawit Bekele',
+        serviceId: 's-4',
+        serviceName: 'In-Office Laser Teeth Whitening',
+        date: new Date(Date.now() + 86400000).toISOString().split('T')[0],
+        startTime: '14:00',
+        endTime: '14:45',
+        status: 'pending',
+        notes: 'Requested pre-wedding whitening session.',
+        isWalkIn: false,
+        reminderSent: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    ],
+    blogPosts: [
+      {
+        id: 'b-1',
+        slug: 'in-office-whitening-vs-home-kits',
+        title: 'Professional In-Office Whitening vs. At-Home Kits: What Really Works?',
+        category: 'Cosmetic Dentistry',
+        readTimeMinutes: 5,
+        excerpt: 'Discover why professional cold-laser activation provides enamel-safe results up to 8 shades lighter without damaging gum tissue or triggering sensitivity.',
+        content: `Many patients ask whether over-the-counter whitening strips deliver the same results as clinical chairside treatments. The critical difference lies in active concentration, barrier isolation, and pH stabilization.
+
+### Enamel Protection & Gum Isolation
+Over-the-counter kits often spill peroxide onto delicate gingival tissues, triggering inflammation or chemical burns. At Viora Dental Center, we isolate the gum line with light-curing liquid dams before applying medical-grade hydrogen peroxide stabilized at neutral pH.
+
+### Depth of Oxidation
+Home strips merely tackle surface staining (extrinsic stains from coffee or tea). Our clinical cold blue laser system breaks down chromophores embedded deep within the dentin layers (intrinsic discoloration), giving you long-lasting brilliance in one 45-minute visit.
+
+### Post-Whitening Maintenance
+- Avoid dark berries, coffee, and red wine for 48 hours following treatment.
+- Use a soft-bristle toothbrush with potassium nitrate remineralizing toothpaste.
+- Schedule bi-annual ultrasonic polishings to sustain brightness.`,
+        coverImageUrl: '/src/assets/images/viora_smile_consultation_1791308064299.jpg',
+        authorName: 'Dr. Selamawit Bekele',
+        authorRole: 'Lead Aesthetic Dentist',
+        publishedAt: '2026-09-18',
+        isPublished: true,
+      },
+      {
+        id: 'b-2',
+        slug: 'clear-aligners-for-adults-benefits',
+        title: 'Clear Aligners for Adults: Discreet Orthodontics in Everyday Life',
+        category: 'Orthodontics',
+        readTimeMinutes: 6,
+        excerpt: 'You are never too old to achieve a straight, healthy bite. Learn how modern 3D digital clear aligners fit effortlessly into professional work schedules.',
+        content: `Crooked teeth or an uneven bite do not just affect smile confidence—they also complicate flossing and accelerate premature enamel wear.
+
+### Why Adults Prefer Clear Aligners
+1. **Zero Dietary Restrictions**: Unlike fixed brackets, aligners are removed for eating, allowing you to enjoy your favourite meals without food getting caught.
+2. **Effortless Oral Hygiene**: Brush and floss normally without threading wires.
+3. **Computerized Predictability**: Using 3D scans, we preview your tooth movement from start to finish before your first tray is manufactured.
+
+### Wear Time Guidelines
+To achieve the projected results, aligners must be worn 20 to 22 hours per day. Trays are changed every 10 to 14 days as gentle, calibrated forces guide teeth into optimal alignment.`,
+        coverImageUrl: '/src/assets/images/viora_dental_operatory_1791308043951.jpg',
+        authorName: 'Dr. Amanuel Tadesse',
+        authorRole: 'Specialist Orthodontist',
+        publishedAt: '2026-09-24',
+        isPublished: true,
+      },
+      {
+        id: 'b-3',
+        slug: 'early-signs-of-tooth-decay-and-prevention',
+        title: '5 Subtle Signs of Tooth Decay You Shouldn’t Ignore',
+        category: 'Oral Health Tips',
+        readTimeMinutes: 4,
+        excerpt: 'Tooth decay often begins quietly with micro-lesions before pain begins. Recognizing these early signs can save your natural teeth with minimal intervention.',
+        content: `Waiting until a tooth hurts usually means decay has reached the inner dental pulp, requiring root canal therapy rather than a conservative composite filling.
+
+### Warning Signs to Watch For
+- **White Chalky Spots**: Early demineralization where minerals are leaching from enamel.
+- **Sensitivity to Sweets**: Sugar penetration indicates breached enamel tubules.
+- **Floss Snagging**: If dental floss routinely shreds between specific teeth, a cavity edge may be developing.
+- **Persistent Bad Breath**: Bacterial buildup inside uncleaned interdental pockets.
+- **Discoloration Around Existing Fillings**: Secondary leakage under aged restorations.
+
+Schedule a routine bi-annual examination with digital bitewing imaging to catch lesions before they become structural problems.`,
+        coverImageUrl: '/src/assets/images/viora_clinic_reception_1791308031194.jpg',
+        authorName: 'Dr. Helen Mengistu',
+        authorRole: 'Endodontist & Restorative Specialist',
+        publishedAt: '2026-10-01',
+        isPublished: true,
+      },
+    ],
+    galleryItems: [
+      {
+        id: 'g-1',
+        title: 'Complete Porcelain Smile Transformation',
+        category: 'Veneers & Aesthetics',
+        description: 'Upper 8 porcelain E.max veneers addressing fluorosis discoloration, midline discrepancy, and worn canine edges for a natural radiant smile.',
+        beforeImageUrl: 'https://images.unsplash.com/photo-1588776814546-1ffcf47267a5?auto=format&fit=crop&w=800&q=80',
+        afterImageUrl: 'https://images.unsplash.com/photo-1606811841689-23dfddce3e95?auto=format&fit=crop&w=800&q=80',
+        isBeforeAfter: true,
+        sortOrder: 1,
+        doctorName: 'Dr. Selamawit Bekele',
+      },
+      {
+        id: 'g-2',
+        title: 'In-Office Cold Laser Brightening',
+        category: 'Teeth Whitening',
+        description: '7-shade brightening in a single 45-minute clinical treatment, eradicating years of stubborn coffee and dark tea pigments.',
+        beforeImageUrl: 'https://images.unsplash.com/photo-1598256989800-fe5f95da9787?auto=format&fit=crop&w=800&q=80',
+        afterImageUrl: 'https://images.unsplash.com/photo-1588776814546-1ffcf47267a5?auto=format&fit=crop&w=800&q=80',
+        isBeforeAfter: true,
+        sortOrder: 2,
+        doctorName: 'Dr. Selamawit Bekele',
+      },
+      {
+        id: 'g-3',
+        title: 'Invisible Clear Aligner Alignment',
+        category: 'Orthodontics',
+        description: '14-month non-extraction clear aligner therapy resolving severe lower crowding and crossbite in an adult working professional.',
+        beforeImageUrl: 'https://images.unsplash.com/photo-1572985025488-c9097ff6642c?auto=format&fit=crop&w=800&q=80',
+        afterImageUrl: 'https://images.unsplash.com/photo-1606811841689-23dfddce3e95?auto=format&fit=crop&w=800&q=80',
+        isBeforeAfter: true,
+        sortOrder: 3,
+        doctorName: 'Dr. Amanuel Tadesse',
+      },
+      {
+        id: 'g-4',
+        title: 'Guided Dental Implant Replacement',
+        category: 'Dental Implants',
+        description: 'Single central incisor titanium root replacement with customized CAD/CAM zirconia abutment and crown blending seamlessly with adjacent teeth.',
+        beforeImageUrl: 'https://images.unsplash.com/photo-1629909613654-28e377c37b09?auto=format&fit=crop&w=800&q=80',
+        afterImageUrl: 'https://images.unsplash.com/photo-1606811841689-23dfddce3e95?auto=format&fit=crop&w=800&q=80',
+        isBeforeAfter: true,
+        sortOrder: 4,
+        doctorName: 'Dr. Selamawit Bekele',
+      },
+      {
+        id: 'g-5',
+        title: 'Executive Reception & Refreshment Lounge',
+        category: 'Clinic Facilities',
+        description: 'Our tranquil Scandinavian-inspired patient reception featuring organic oak details, herbal refreshments, and welcoming clinical team.',
+        singleImageUrl: '/src/assets/images/viora_clinic_reception_1791308031194.jpg',
+        isBeforeAfter: false,
+        sortOrder: 5,
+      },
+      {
+        id: 'g-6',
+        title: 'High-Precision Digital Operatory Suite',
+        category: 'Clinic Facilities',
+        description: 'Ultra-hygienic sterile operatory equipped with quiet electric handpieces, overhead cinema screens, and German digital imaging.',
+        singleImageUrl: '/src/assets/images/viora_dental_operatory_1791308043951.jpg',
+        isBeforeAfter: false,
+        sortOrder: 6,
+      },
+    ],
+    testimonials: [
+      {
+        id: 't-1',
+        patientName: 'Bethlehem Haile',
+        treatment: 'Porcelain Veneers Makeover',
+        rating: 5,
+        comment: 'I hid my smile for over 10 years due to childhood tetracycline staining. Dr. Selamawit and her team at Viora crafted custom veneers that look so completely natural that my friends thought I simply started glowing. The clinic is spotless and painless!',
+        date: '2026-09-12',
+        isApproved: true,
+      },
+      {
+        id: 't-2',
+        patientName: 'Tewodros Kassahun',
+        treatment: 'Dental Implant & Crown',
+        rating: 5,
+        comment: 'I was terrified of having an implant placed after a sports injury. The 3D surgical guide made the procedure fast and remarkably painless. I was back at work the next morning with zero discomfort. Outstanding professionalism.',
+        date: '2026-09-20',
+        isApproved: true,
+      },
+      {
+        id: 't-3',
+        patientName: 'Meron Alemayehu',
+        treatment: 'Clear Aligners & Whitening',
+        rating: 5,
+        comment: 'Dr. Amanuel guided me through 12 months of clear aligners with so much patience and attention to detail. Finished off with in-office whitening and I could not be happier with my wedding photos!',
+        date: '2026-09-29',
+        isApproved: true,
+      },
+    ],
+    contactMessages: [
+      {
+        id: 'm-1',
+        name: 'Kalkidan Assefa',
+        phone: '+251 912 334 455',
+        email: 'kalkidan.a@gmail.com',
+        subject: 'Inquiry regarding Clear Aligners financing',
+        message: 'Hello Viora team, do you offer installment payment plans for 12-month adult clear aligner therapy? Thank you!',
+        status: 'read',
+        createdAt: new Date(Date.now() - 3600000 * 5).toISOString(),
+      },
+      {
+        id: 'm-2',
+        name: 'Henok Tefera',
+        phone: '+251 922 889 900',
+        email: '',
+        subject: 'Weekend emergency appointment availability',
+        message: 'Woke up with sharp throbbing pain in lower molar. Can I walk in this Saturday morning at 9:00 AM?',
+        status: 'unread',
+        createdAt: new Date(Date.now() - 3600000).toISOString(),
+      },
+    ],
+    auditLogs: [
+      {
+        id: 'log-1',
+        timestamp: new Date(Date.now() - 86400000 * 2).toISOString(),
+        userId: 'u-1',
+        username: 'superadmin',
+        userRole: 'super_admin',
+        action: 'SYSTEM_INITIALIZED',
+        details: 'Initial Viora Dental Center clinic database provisioned with role security and doctor profiles.',
+      },
+      {
+        id: 'log-2',
+        timestamp: new Date(Date.now() - 86400000).toISOString(),
+        userId: 'u-3',
+        username: 'reception',
+        userRole: 'receptionist',
+        action: 'WALK_IN_APPOINTMENT_CREATED',
+        details: 'Booked in-clinic walk-in patient Lidya Girma for Clear Aligners with Dr. Amanuel Tadesse.',
+      },
+    ],
+    seoSettings: {
+      home: {
+        page: 'home',
+        title: 'Viora Dental Center - Premier Dental Care & Aesthetic Dentistry',
+        metaDescription: 'Experience world-class painless dentistry in Addis Ababa. Digital smile design, porcelain veneers, dental implants, clear aligners, and comprehensive family care.',
+        ogTitle: 'Viora Dental Center - Exceptional Smiles & Compassionate Care',
+        ogDescription: 'Advanced digital dentistry, implantology, and smile makeovers with leading certified specialists in Addis Ababa.',
+        keywords: 'dental clinic, dentist addis ababa, veneers ethiopia, dental implants, clear aligners, teeth whitening, viora dental center',
+      },
+      services: {
+        page: 'services',
+        title: 'Clinical Dental Services | Viora Dental Center',
+        metaDescription: 'Explore our comprehensive range of specialized dental treatments: general exams, implants, cosmetic veneers, orthodontics, and emergency relief.',
+        ogTitle: 'Comprehensive Clinical Dental Treatments | Viora Dental',
+        ogDescription: 'Precision dental technology and certified specialists delivering gentle, lifelong oral health and aesthetic transformations.',
+        keywords: 'dental services, cosmetic dentistry, orthodontics, dental implants, pediatric dentist, root canal',
+      },
+      about: {
+        page: 'about',
+        title: 'Meet Our Dental Specialists & Clinic Story | Viora Dental',
+        metaDescription: 'Learn about our lead dental surgeons, European-trained aesthetic doctors, state-of-the-art sterile protocols, and clinic philosophy.',
+        ogTitle: 'Our Team of Certified Dental Surgeons | Viora Dental Center',
+        ogDescription: 'Compassionate, world-class dental care led by Dr. Selamawit Bekele and specialized clinicians.',
+        keywords: 'about viora dental, dentist profiles, certified doctors, clinic hygiene, dental technology',
+      },
+      gallery: {
+        page: 'gallery',
+        title: 'Before & After Smile Gallery | Viora Dental Center',
+        metaDescription: 'Browse real clinical patient transformations: side-by-side before and after comparisons for porcelain veneers, orthodontic aligners, and teeth whitening.',
+        ogTitle: 'Clinical Smile Transformations & Facility Tour | Viora Dental',
+        ogDescription: 'Real results from real patients. Interactive before and after comparisons of smile makeovers.',
+        keywords: 'before and after veneers, smile makeover results, teeth whitening gallery, dental clinic photos',
+      },
+      blog: {
+        page: 'blog',
+        title: 'Dental Health Tips & Expert Articles | Viora Dental',
+        metaDescription: 'Practical oral hygiene tips, orthodontic guides, and pediatric dental advice written by our practicing dental clinicians.',
+        ogTitle: 'Oral Hygiene & Cosmetic Dental Blog | Viora Dental Center',
+        ogDescription: 'Clinical advice on keeping your teeth, gums, and smile in radiant health.',
+        keywords: 'dental tips, oral health blog, teeth whitening advice, flossing habits, clear aligner guide',
+      },
+      contact: {
+        page: 'contact',
+        title: 'Contact & Clinic Location | Viora Dental Center',
+        metaDescription: 'Find our modern clinic in Bole Sub-City, Addis Ababa. View operating hours, direct phone line, and easily get directions.',
+        ogTitle: 'Visit Viora Dental Center in Bole, Addis Ababa',
+        ogDescription: 'Open Monday through Saturday. Book your consultation or visit our executive dental center.',
+        keywords: 'contact dentist, viora dental location, bole addis ababa clinic, dental phone number',
+      },
+      booking: {
+        page: 'booking',
+        title: 'Book an Appointment Online | Viora Dental Center',
+        metaDescription: 'Schedule your dental visit in real-time. Select your preferred doctor, treatment, and time slot with instant confirmation.',
+        ogTitle: 'Instant Online Dental Appointment Booking | Viora Dental',
+        ogDescription: 'Choose your doctor and convenient date. Real-time availability with zero double-booking.',
+        keywords: 'book dentist appointment, schedule dental visit, online dental booking addis ababa',
+      },
+    },
+  };
+}
+
+export function loadDatabase(): DatabaseSchema {
+  if (db) return db;
+
+  try {
+    if (fs.existsSync(DB_FILE)) {
+      const content = fs.readFileSync(DB_FILE, 'utf-8');
+      db = JSON.parse(content);
+      // Merge any missing keys from initial seed
+      const seed = getInitialSeedData();
+      let changed = false;
+      for (const key of Object.keys(seed) as (keyof DatabaseSchema)[]) {
+        if (!db[key]) {
+          (db as any)[key] = seed[key];
+          changed = true;
+        }
+      }
+      if (changed) saveDatabase();
+      return db;
+    }
+  } catch (err) {
+    console.error('Error loading DB file, fallback to seed data:', err);
+    // Preserve the unreadable file before seeding so existing records can be recovered
+    if (fs.existsSync(DB_FILE)) {
+      const backupFile = path.join(DATA_DIR, `viora_store.corrupt-${Date.now()}.json`);
+      try {
+        fs.copyFileSync(DB_FILE, backupFile);
+        console.error(`Unreadable DB file preserved at ${backupFile}`);
+      } catch (copyErr) {
+        throw new Error(
+          `DB file is unreadable and could not be backed up (${String(copyErr)}). Refusing to overwrite it.`
+        );
+      }
+    }
+  }
+
+  db = getInitialSeedData();
+  saveDatabase();
+  return db;
+}
+
+export function saveDatabase(): void {
+  // Write to a temp file and rename over the original, so a crash mid-write cannot leave a truncated DB file
+  const tempFile = `${DB_FILE}.tmp`;
+  try {
+    fs.writeFileSync(tempFile, JSON.stringify(db, null, 2), 'utf-8');
+    fs.renameSync(tempFile, DB_FILE);
+  } catch (err) {
+    console.error('Error writing DB file:', err);
+  }
+}
+
+export function logAudit(
+  userId: string,
+  username: string,
+  userRole: string,
+  action: string,
+  details: string
+): void {
+  const currentDb = loadDatabase();
+  const entry: AuditLog = {
+    id: `log-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+    timestamp: new Date().toISOString(),
+    userId,
+    username,
+    userRole,
+    action,
+    details,
+  };
+  currentDb.auditLogs.unshift(entry);
+  if (currentDb.auditLogs.length > 500) {
+    currentDb.auditLogs.pop();
+  }
+  saveDatabase();
+}

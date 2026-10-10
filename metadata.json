@@ -1,0 +1,6 @@
+{
+  "name": "Viora Dental Center",
+  "description": "Comprehensive dental clinic website and management portal featuring real-time appointment scheduling, doctor profiles, interactive before-and-after smile gallery, dental health tips, and RBAC admin dashboard.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
